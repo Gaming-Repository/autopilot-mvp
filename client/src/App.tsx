@@ -9,6 +9,9 @@ import Dashboard from "./pages/Dashboard";
 import EmailConversations from "./pages/EmailConversations";
 import Bookings from "./pages/Bookings";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import WhatsAppConversations from "./pages/WhatsAppConversations";
+import BrandedBookingPages from "./pages/BrandedBookingPages";
+import Subscription from "./pages/Subscription";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,12 +20,14 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/email-conversations"} component={EmailConversations} />
+      <Route path={"/whatsapp-conversations"} component={WhatsAppConversations} />
       <Route path={"/bookings"} component={Bookings} />
       <Route path={"/knowledge-base"} component={KnowledgeBase} />
+      <Route path={"/branded-pages"} component={BrandedBookingPages} />
+      <Route path={"/subscription"} component={Subscription} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+      <Route component={NotFound} />    </Switch>
   );
 }
 
