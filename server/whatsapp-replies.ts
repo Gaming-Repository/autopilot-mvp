@@ -1,0 +1,201 @@
+import { eq, and, desc } from "drizzle-orm";
+import { getDb } from "./db";
+import { whatsappConversations, InsertWhatsappConversation, WhatsappConversation } from "../drizzle/schema";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+/**
+ * Create or get WhatsApp conversation
+ */
+export async function getOrCreateWhatsappConversation(
+  userId: number,
+  customerPhone: string
+): Promise<WhatsappConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    // Try to find existing conversation
+    const existing = await db.select().from(whatsappConversations)
+      .where(and(
+        eq(whatsappConversations.userId, userId),
+        eq(whatsappConversations.customerPhone, customerPhone)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    // Create new conversation
+    const result = await db.insert(whatsappConversations).values({
+      userId,
+      customerPhone,
+      messageHistory: JSON.stringify([]),
+      lastMessageAt: new Date(),
+      autoReplyGenerated: false,
+      flaggedForReview: false,
+    });
+
+    const id = result[0]?.insertId;
+    if (!id) return null;
+
+    const created = await db.select().from(whatsappConversations)
+      .where(eq(whatsappConversations.id, id as number))
+      .limit(1);
+
+    return created.length > 0 ? created[0] : null;
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to get/create conversation:", error);
+    return null;
+  }
+}
+
+/**
+ * Get user's WhatsApp conversations
+ */
+export async function getUserWhatsappConversations(userId: number, limit: number = 50, offset: number = 0) {
+  const db = await getDb();
+  if (!db) return { conversations: [], total: 0 };
+
+  try {
+    const result = await db.select().from(whatsappConversations)
+      .where(eq(whatsappConversations.userId, userId))
+      .orderBy(desc(whatsappConversations.lastMessageAt))
+      .limit(limit)
+      .offset(offset);
+
+    const countResult = await db.select().from(whatsappConversations)
+      .where(eq(whatsappConversations.userId, userId));
+
+    return {
+      conversations: result,
+      total: countResult.length,
+    };
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to get conversations:", error);
+    return { conversations: [], total: 0 };
+  }
+}
+
+/**
+ * Get conversation by ID
+ */
+export async function getWhatsappConversationById(id: number, userId: number): Promise<WhatsappConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const result = await db.select().from(whatsappConversations)
+      .where(and(eq(whatsappConversations.id, id), eq(whatsappConversations.userId, userId)))
+      .limit(1);
+
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to get conversation:", error);
+    return null;
+  }
+}
+
+/**
+ * Add message to conversation
+ */
+export async function addMessageToWhatsappConversation(
+  id: number,
+  userId: number,
+  message: Message
+): Promise<WhatsappConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const conversation = await getWhatsappConversationById(id, userId);
+    if (!conversation) return null;
+
+    const history = conversation.messageHistory ? JSON.parse(conversation.messageHistory as any) : [];
+    history.push(message);
+
+    await db.update(whatsappConversations)
+      .set({
+        messageHistory: JSON.stringify(history),
+        lastMessageAt: new Date(),
+      })
+      .where(and(eq(whatsappConversations.id, id), eq(whatsappConversations.userId, userId)));
+
+    return getWhatsappConversationById(id, userId);
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to add message:", error);
+    return null;
+  }
+}
+
+/**
+ * Save auto-reply to conversation
+ */
+export async function saveWhatsappAutoReply(
+  id: number,
+  userId: number,
+  replyContent: string
+): Promise<WhatsappConversation | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    await db.update(whatsappConversations)
+      .set({
+        autoReplyGenerated: true,
+        autoReplyContent: replyContent,
+      })
+      .where(and(eq(whatsappConversations.id, id), eq(whatsappConversations.userId, userId)));
+
+    return getWhatsappConversationById(id, userId);
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to save auto-reply:", error);
+    return null;
+  }
+}
+
+/**
+ * Flag conversation for review
+ */
+export async function flagWhatsappForReview(id: number, userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    await db.update(whatsappConversations)
+      .set({ flaggedForReview: true })
+      .where(and(eq(whatsappConversations.id, id), eq(whatsappConversations.userId, userId)));
+
+    return true;
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to flag for review:", error);
+    return false;
+  }
+}
+
+/**
+ * Get flagged conversations
+ */
+export async function getFlaggedWhatsappConversations(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const result = await db.select().from(whatsappConversations)
+      .where(and(
+        eq(whatsappConversations.userId, userId),
+        eq(whatsappConversations.flaggedForReview, true)
+      ))
+      .orderBy(desc(whatsappConversations.lastMessageAt));
+
+    return result;
+  } catch (error) {
+    console.error("[WhatsAppReplies] Failed to get flagged conversations:", error);
+    return [];
+  }
+}
