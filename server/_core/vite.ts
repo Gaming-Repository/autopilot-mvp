@@ -16,8 +16,9 @@ export async function setupVite(app: Express, server: Server) {
   try {
     const viteModule = await import("vite");
     createViteServer = viteModule.createServer;
-    const configModule = await import("../../vite.config");
-    viteConfig = configModule.default;
+    // We don't import the config file directly to avoid pulling in build-time plugins
+    // instead we let Vite find it or provide a minimal config
+    createViteServer = viteModule.createServer;
   } catch (e) {
     console.error("Failed to load Vite in production/serverless environment:", e);
     return;
@@ -29,8 +30,7 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    configFile: path.resolve(import.meta.dirname, "../../vite.config.ts"),
     server: serverOptions,
     appType: "custom",
   });
