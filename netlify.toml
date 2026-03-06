@@ -6,7 +6,18 @@
 
 [functions]
   node_bundle = "esbuild"
-  external_node_modules = ["pg", "mysql2"]
+  external_node_modules = [
+    "pg", 
+    "mysql2", 
+    "vite", 
+    "@tailwindcss/vite", 
+    "@builder.io/vite-plugin-jsx-loc", 
+    "vite-plugin-manus-runtime",
+    "lightningcss"
+  ]
+
+[functions.api]
+  included_files = ["dist/public/index.html"]
 
 [[redirects]]
   from = "/api/*"
