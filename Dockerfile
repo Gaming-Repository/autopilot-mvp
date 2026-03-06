@@ -16,8 +16,9 @@ RUN pnpm install --prod --no-frozen-lockfile
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/client/public ./client/public
 
+# Hugging Face Spaces expects port 7860
 ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+ENV PORT=7860
+EXPOSE 7860
 
 CMD ["pnpm", "run", "start"]
