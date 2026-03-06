@@ -11,8 +11,17 @@ export async function setupVite(app: Express, server: Server) {
     console.log("Vite setup skipped in serverless environment");
     return;
   }
-  const { createServer: createViteServer } = await import("vite");
-  const { default: viteConfig } = await import("../../vite.config");
+  let createViteServer;
+  let viteConfig;
+  try {
+    const viteModule = await import("vite");
+    createViteServer = viteModule.createServer;
+    const configModule = await import("../../vite.config");
+    viteConfig = configModule.default;
+  } catch (e) {
+    console.error("Failed to load Vite in production/serverless environment:", e);
+    return;
+  }
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },

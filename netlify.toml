@@ -6,6 +6,9 @@
 
 [functions]
   node_bundle = "esbuild"
+  # Change to ESM to support import.meta
+  directory = "netlify/functions"
+  node_format = "esm"
   external_node_modules = [
     "pg", 
     "mysql2", 
@@ -13,7 +16,10 @@
     "@tailwindcss/vite", 
     "@builder.io/vite-plugin-jsx-loc", 
     "vite-plugin-manus-runtime",
-    "lightningcss"
+    "lightningcss",
+    "@tailwindcss/oxide",
+    "@babel/core",
+    "@babel/preset-typescript"
   ]
 
 [functions.api]
