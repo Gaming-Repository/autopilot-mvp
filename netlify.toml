@@ -6,9 +6,9 @@
 
 [functions]
   node_bundle = "esbuild"
-  # Change to ESM to support import.meta
   directory = "netlify/functions"
   node_format = "esm"
+  # Mark all native/build-time modules as external to avoid bundling errors
   external_node_modules = [
     "pg", 
     "mysql2", 
@@ -23,7 +23,8 @@
   ]
 
 [functions.api]
-  included_files = ["dist/public/index.html"]
+  # Ensure the built frontend is available to the function if needed
+  included_files = ["dist/public/**"]
 
 [[redirects]]
   from = "/api/*"
