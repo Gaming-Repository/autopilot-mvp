@@ -1,73 +1,67 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
+import { nanoid } from "nanoid";
 import path from "path";
+import { createServer as createViteServer } from "vite";
+import viteConfig from "../../vite.config";
 
-/**
- * Setup Vite for development mode.
- * This is a NO-OP in production/serverless environments to avoid 
- * pulling in Vite and its heavy build-time dependencies.
- */
 export async function setupVite(app: Express, server: Server) {
-  if (process.env.NODE_ENV === "production" || process.env.NETLIFY || process.env.FUNCTIONS_PATH) {
-    console.log("Vite setup skipped in production/serverless environment.");
-    return;
-  }
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true as const,
+  };
 
-  // In development, we use dynamic imports so they aren't bundled in production
-  try {
-    const { createServer: createViteServer } = await import("vite");
-    const { default: viteConfig } = await import("../../vite.config");
-    
-    const serverOptions = {
-      middlewareMode: true,
-      hmr: { server },
-      allowedHosts: true as const,
-    };
+  const vite = await createViteServer({
+    ...viteConfig,
+    configFile: false,
+    server: serverOptions,
+    appType: "custom",
+  });
 
-    const vite = await createViteServer({
-      ...viteConfig,
-      configFile: false,
-      server: serverOptions,
-      appType: "custom",
-    });
+  app.use(vite.middlewares);
+  app.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
 
-    app.use(vite.middlewares);
-    app.use("*", async (req, res, next) => {
-      const url = req.originalUrl;
-      try {
-        const clientTemplate = path.resolve(process.cwd(), "client", "index.html");
-        let template = await fs.promises.readFile(clientTemplate, "utf-8");
-        const page = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(page);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
-  } catch (e) {
-    console.error("Failed to initialize Vite in development:", e);
-  }
+    try {
+      const clientTemplate = path.resolve(
+        import.meta.dirname,
+        "../..",
+        "client",
+        "index.html"
+      );
+
+      // always reload the index.html file from disk incase it changes
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e as Error);
+      next(e);
+    }
+  });
 }
 
-/**
- * Serve static files in production.
- */
 export function serveStatic(app: Express) {
-  // Use absolute paths relative to the current working directory
-  const distPath = path.resolve(process.cwd(), "dist", "public");
-  
-  if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    app.use("*", (_req, res) => {
-      const indexPath = path.resolve(distPath, "index.html");
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send("Index file not found");
-      }
-    });
-  } else {
-    console.warn(`Static directory not found: ${distPath}`);
+  const distPath =
+    process.env.NODE_ENV === "development"
+      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
+      : path.resolve(import.meta.dirname, "public");
+  if (!fs.existsSync(distPath)) {
+    console.error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
+    );
   }
+
+  app.use(express.static(distPath));
+
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
 }
