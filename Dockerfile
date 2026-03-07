@@ -18,7 +18,7 @@ COPY --from=builder /app/client/public ./client/public
 
 # Hugging Face Spaces expects port 7860
 ENV NODE_ENV=production
-ENV PORT=7860
-EXPOSE 7860
+ENV PORT=3000
+EXPOSE 3000
 
 CMD ["pnpm", "run", "start"]
